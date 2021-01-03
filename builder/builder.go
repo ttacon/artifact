@@ -20,6 +20,14 @@ var (
 	warn = chalk.Yellow.NewStyle().WithTextStyle(chalk.Bold).Style
 )
 
+// findValueFromEnv is our cheap way to try to identify a value from potentially
+// many environment variables. Why do we do this? Because differnt build systems
+// autopopulate very different envvars (e.g. CircleCI, Jenkins, Travis, GitHub
+// actions, etc).
+//
+// findValueFromEnv will loop through the given list, and return the first
+// identified value, or false if no envvar had a value. Note that this is
+// looking for content, not if an envvar is set.
 func findValueFromEnv(keys []string) (string, bool) {
 	for _, key := range keys {
 		if val := os.Getenv(key); len(val) > 0 {
@@ -30,16 +38,21 @@ func findValueFromEnv(keys []string) (string, bool) {
 }
 
 var (
+	// Envvars that tell us what the last known git reference was.
 	gitRangeStartEnvvars = []string{
 		"ARTIFACT_GIT_RANGE_START",
 		"GIT_PREVIOUS_COMMIT",
 	}
+	// Envvars that tell us what the new git reference is.
 	gitRangeEndEnvvars = []string{
 		"ARTIFACT_GIT_RANGE_END",
 		"GIT_COMMIT",
 	}
 )
 
+// getGitRangeVal is a helper function for identifying the desired git range
+// value from either a flag to the CLI or an envvar, in that order of
+// precedence. If none is found, the empty string is returned.
 func getGitRangeVal(c *cli.Context, key string, envNames []string) string {
 	if val := c.String(key); len(val) > 0 {
 		return val
@@ -49,14 +62,20 @@ func getGitRangeVal(c *cli.Context, key string, envNames []string) string {
 	return ""
 }
 
+// Builder is our primary interface or interacting with artifact. It determines
+// which actions to load and how to execute them, passing a context between all
+// actions as they execute.
 type Builder interface {
 	Run() ([]string, error)
 }
 
+// builder is our local implementation of the `Builder` interface, it is a set
+// of ordered `Action`s to take.
 type builder struct {
 	actions []Action
 }
 
+// NewBuilderFromCLI creates a builder from a CLI's context.
 func NewBuilderFromCLI(c *cli.Context) Builder {
 	isDryRun := c.Bool("dry-run")
 	if isDryRun {
@@ -105,11 +124,15 @@ func NewBuilderFromCLI(c *cli.Context) Builder {
 		WorkingDirectory: workingDir,
 	})
 
+	// TODO(ttacon): add an action for persisting the build logs to disk.
+
 	return &builder{
 		actions: actions,
 	}
 }
 
+// Run runs our actions sequentially, passing a continually evolving context
+// between them.
 func (b *builder) Run() ([]string, error) {
 	ctx := context.TODO()
 	for _, action := range b.actions {
