@@ -55,6 +55,10 @@ func main() {
 					Name:  "out-format",
 					Value: "txt",
 				},
+				&cli.StringFlag{
+					Name:  "build-command",
+					Value: "go build -o build.artifact {{entrypoint}}",
+				},
 			},
 		},
 	}

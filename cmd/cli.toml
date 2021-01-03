@@ -61,3 +61,9 @@ type = "string"
 name = "out-format"
 description = "The output format (txt or json)."
 value = "txt"
+
+[[command.flags]]
+type = "string"
+name = "build-command"
+description = "The build command to run for each identified entrypoint"
+value = "go build -o build.artifact {{entrypoint}}"
