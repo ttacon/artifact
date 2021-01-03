@@ -93,9 +93,16 @@ func NewBuilderFromCLI(c *cli.Context) Builder {
 	// Determine targets that must be rebuilt
 	actions = append(actions, ModifiedDependencies{})
 
-	// Output any entrypoints that need to be rebuilt
+	// Identify any entrypoints that need to be rebuilt
 	actions = append(actions, &OutputDependencies{
 		Format: c.String("out-format"),
+	})
+
+	// Rebuild these artifacts
+	actions = append(actions, &RebuildTargets{
+		IsDryRun:         isDryRun,
+		BuildCommand:     c.String("build-command"),
+		WorkingDirectory: workingDir,
 	})
 
 	return &builder{
@@ -370,6 +377,8 @@ func (e *OutputDependencies) Do(ctx context.Context) (context.Context, error) {
 		return nil, errors.New("new valid targets identified")
 	}
 
+	// Hmm, I don't really like this? This action should likely be an
+	// optional, terminal action.
 	log.Println("output format is: ", e.Format)
 	if e.Format == "json" {
 		data, err := json.Marshal(targets)
@@ -381,10 +390,71 @@ func (e *OutputDependencies) Do(ctx context.Context) (context.Context, error) {
 	}
 
 	// Otherwise, it's the `txt` format.
-	fmt.Println(strings.Join(targets, "\n"))
+	log.Println("targets: ", strings.Join(targets, ", "))
 	return context.WithValue(
 		ctx,
 		"rebuilds",
 		targets,
 	), nil
+}
+
+type RebuildTargets struct {
+	IsDryRun         bool
+	BuildCommand     string
+	WorkingDirectory string
+}
+
+func (r *RebuildTargets) Precheck(_ context.Context) error {
+	if len(r.BuildCommand) == 0 {
+		return errors.New("must provide build command")
+	} else if !strings.Contains(r.BuildCommand, "{{entrypoint}}") {
+		return errors.New("must provide build command that uses {{entrypoint}}")
+	}
+	return nil
+}
+
+func makeLocalPath(str string) string {
+	sep := string(filepath.Separator)
+	return fmt.Sprintf(".%s%s%s", sep, str, sep)
+}
+func (r *RebuildTargets) Do(ctx context.Context) (context.Context, error) {
+	rebuilds, ok := ctx.Value("rebuilds").([]string)
+	if !ok {
+		return nil, errors.New("no valid targets to rebuild determined")
+	}
+
+	var targetOutputs = make(map[string][]byte)
+
+	for _, target := range rebuilds {
+		cmdToRun := strings.ReplaceAll(
+			r.BuildCommand,
+			"{{entrypoint}}",
+			makeLocalPath(target),
+		)
+		log.Printf("rebuilding target %q with command %q\n", target, cmdToRun)
+
+		if r.IsDryRun {
+			continue
+		}
+
+		// NOTE(ttacon): this needs to be cleaned up as it's exceedingly fragile
+		// Imagine adding an extra space on accident (e.g. "go   build").
+		pieces := strings.Split(cmdToRun, " ")
+
+		// Yes, this makes an assumption.
+		cmd := exec.Command(pieces[0], pieces[1:]...)
+		if len(r.WorkingDirectory) > 0 {
+			cmd.Dir = r.WorkingDirectory
+		}
+
+		// TODO(ttacon): add --force-all flag to not stop at first build
+		// error.
+		out, err := cmd.Output()
+		if err != nil {
+			return nil, err
+		}
+		targetOutputs[target] = out
+	}
+
+	return context.WithValue(ctx, "build-logs", targetOutputs), nil
 }

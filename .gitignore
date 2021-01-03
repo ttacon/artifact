@@ -15,4 +15,8 @@
 # vendor/
 
 
+# The binary itself.
 artifact
+
+# Example temp binary
+build.artifact
