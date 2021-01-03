@@ -1,0 +1,63 @@
+# This file defines the CLI interface for the ssm-sync command
+#
+# Do not build this by hand, instead, run `make toml2cli`.
+[general]
+name = "artifact"
+description = "Helps build deployable artifacts."
+generator = "github.com/urfave/cli"
+
+[[command]]
+name = "build"
+aliases = [ "b" ]
+description = "Build deployable artifact"
+action = "build"
+
+[[command.flags]]
+type = "bool"
+name = "dry-run"
+aliases = [ "dry" ]
+value = true
+description = "Whether or not to do a dry run"
+
+[[command.flags]]
+type = "string"
+name = "working-directory"
+aliases = [ "C" ]
+description = "The directory to change to in order to run our actions."
+
+[[command.flags]]
+type = "string"
+name = "git-range-start"
+aliases = [ "start" ]
+description = "The git range to start the diff from."
+
+[[command.flags]]
+type = "string"
+name = "git-range-end"
+aliases = [ "end" ]
+description = "The git range to end the diff at."
+
+[[command.flags]]
+type = "string"
+name = "cmd-prefix"
+aliases = [ "pre" ]
+description = "The path prefix for identifying artifact entrypoints."
+value = "./cmd/"
+
+[[command.flags]]
+type = "bool"
+name = "skip-nested-entrypoints"
+description = "Whether we're expecting a single entrypoint or nested ones."
+value = true
+
+[[command.flags]]
+type = "string"
+name = "repo-basename"
+description = "The base name of the repository"
+aliases = [ "repo" ]
+
+[[command.flags]]
+type = "string"
+name = "out-format"
+description = "The output format (txt or json)."
+value = "txt"
